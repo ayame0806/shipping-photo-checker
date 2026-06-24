@@ -61,6 +61,7 @@ P3－箱外束帶/膠帶固定、地址確認
 - 使用 `navigator.mediaDevices.getUserMedia()` 開啟手機相機。
 - 優先使用後鏡頭 `facingMode: environment`。
 - 使用 Canvas 擷取相機畫面並加上文字。
+- 快速模式使用同步 `canvas.toDataURL("image/jpeg")` 產生圖片並立即觸發儲存，降低手機瀏覽器把下載視為非使用者操作的機率。
 - 部署到 GitHub Pages 後為 HTTPS，可正常使用相機權限。
 - 手機瀏覽器沒有標準的「預先允許多張自動下載」網頁權限；快速模式會嘗試在按下拍照後直接觸發儲存，但 Android Chrome 或 iPhone Safari 仍可能依瀏覽器規則提示或阻擋。
 

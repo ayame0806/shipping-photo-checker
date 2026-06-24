@@ -227,17 +227,20 @@ async function captureCurrentPhoto() {
 
   try {
     const capturedAt = new Date();
-    const result = await annotateVideoFrame(video, step, capturedAt);
-    stopCamera();
-    setCopyStatus(`${step} 圖片已產生。`, "success");
 
     if (elements.quickModeCheckbox.checked) {
+      const result = annotateVideoFrameDataUrl(video, step, capturedAt);
       downloadPhotoImmediately(result);
+      stopCamera();
+      setCopyStatus(`${step} 圖片已產生。`, "success");
       setPhotoStatus(`${step} 圖片已直接儲存，預覽已清除。`, "success");
       window.setTimeout(clearCurrentPhoto, 900);
       return;
     }
 
+    const result = await annotateVideoFrame(video, step, capturedAt);
+    stopCamera();
+    setCopyStatus(`${step} 圖片已產生。`, "success");
     updatePhotoPreview(result);
     setPhotoStatus(`${step} 圖片已產生，請按「儲存 ${step} 圖片」。`, "success");
   } catch (error) {
@@ -263,6 +266,30 @@ function stopCamera() {
 }
 
 async function annotateVideoFrame(video, step, capturedAt) {
+  const canvas = drawVideoFrameToCanvas(video, step, capturedAt);
+  const blob = await canvasToBlob(canvas);
+  const url = URL.createObjectURL(blob);
+
+  return {
+    blob,
+    url,
+    step,
+    fileName: `${step}_${formatFileDate(capturedAt)}.jpg`,
+  };
+}
+
+function annotateVideoFrameDataUrl(video, step, capturedAt) {
+  const canvas = drawVideoFrameToCanvas(video, step, capturedAt);
+  const url = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+
+  return {
+    url,
+    step,
+    fileName: `${step}_${formatFileDate(capturedAt)}.jpg`,
+  };
+}
+
+function drawVideoFrameToCanvas(video, step, capturedAt) {
   const sourceWidth = video.videoWidth;
   const sourceHeight = video.videoHeight;
   const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(sourceWidth, sourceHeight));
@@ -277,15 +304,7 @@ async function annotateVideoFrame(video, step, capturedAt) {
   context.drawImage(video, 0, 0, width, height);
   drawPhotoOverlay(context, width, step, formatDisplayDate(capturedAt));
 
-  const blob = await canvasToBlob(canvas);
-  const url = URL.createObjectURL(blob);
-
-  return {
-    blob,
-    url,
-    step,
-    fileName: `${step}_${formatFileDate(capturedAt)}.jpg`,
-  };
+  return canvas;
 }
 
 function drawPhotoOverlay(context, width, step, timestampText) {
@@ -405,7 +424,7 @@ function downloadPhotoImmediately(photo) {
 }
 
 function clearCurrentPhoto() {
-  if (state.currentPhoto && state.currentPhoto.url) {
+  if (state.currentPhoto && state.currentPhoto.url && state.currentPhoto.url.startsWith("blob:")) {
     URL.revokeObjectURL(state.currentPhoto.url);
   }
 
