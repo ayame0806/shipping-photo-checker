@@ -1,0 +1,421 @@
+"use strict";
+
+const VENDORS = ["亞克", "鎧鉅", "馗鼎", "大寶鈦金", "亞洲科匯", "聖釭"];
+
+const PHOTO_LABELS = {
+  P1: "P1－刀盒/填充物/螺絲 確認",
+  P2: "P2－箱內填充確認",
+  P3: "P3－箱外束帶/膠帶固定、地址確認",
+};
+
+const MAX_IMAGE_SIDE = 2560;
+const JPEG_QUALITY = 0.95;
+
+const state = {
+  vendorCounts: new Map(),
+  photos: {
+    P1: null,
+    P2: null,
+    P3: null,
+  },
+};
+
+const elements = {
+  vendorSelect: document.querySelector("#vendorSelect"),
+  boxCountSelect: document.querySelector("#boxCountSelect"),
+  addVendorButton: document.querySelector("#addVendorButton"),
+  clearVendorButton: document.querySelector("#clearVendorButton"),
+  vendorList: document.querySelector("#vendorList"),
+  emptyVendorText: document.querySelector("#emptyVendorText"),
+  staffSelect: document.querySelector("#staffSelect"),
+  copyInfoButton: document.querySelector("#copyInfoButton"),
+  copyStatus: document.querySelector("#copyStatus"),
+  reportOutput: document.querySelector("#reportOutput"),
+  photoInputs: document.querySelectorAll(".camera-input"),
+  previews: {
+    P1: document.querySelector("#previewP1"),
+    P2: document.querySelector("#previewP2"),
+    P3: document.querySelector("#previewP3"),
+  },
+  downloads: {
+    P1: document.querySelector("#downloadP1"),
+    P2: document.querySelector("#downloadP2"),
+    P3: document.querySelector("#downloadP3"),
+  },
+};
+
+elements.addVendorButton.addEventListener("click", addVendorCount);
+elements.clearVendorButton.addEventListener("click", clearVendorCounts);
+elements.copyInfoButton.addEventListener("click", copyReportText);
+elements.photoInputs.forEach((input) => {
+  input.addEventListener("change", handlePhotoChange);
+});
+
+renderVendorList();
+
+function addVendorCount() {
+  const vendor = elements.vendorSelect.value;
+  const count = Number(elements.boxCountSelect.value);
+
+  if (!vendor || !Number.isFinite(count) || count <= 0) {
+    alert("請選擇廠商與箱數");
+    return;
+  }
+
+  const currentCount = state.vendorCounts.get(vendor) || 0;
+  state.vendorCounts.set(vendor, currentCount + count);
+  renderVendorList();
+  setCopyStatus(`${vendor} 已加入，目前 ${currentCount + count} 箱。`, "success");
+}
+
+function clearVendorCounts() {
+  if (state.vendorCounts.size === 0) {
+    return;
+  }
+
+  state.vendorCounts.clear();
+  renderVendorList();
+  setCopyStatus("外包商箱數清單已清除。", "success");
+}
+
+function renderVendorList() {
+  elements.vendorList.innerHTML = "";
+
+  const selectedVendors = VENDORS.filter((vendor) => {
+    return (state.vendorCounts.get(vendor) || 0) > 0;
+  });
+
+  selectedVendors.forEach((vendor) => {
+    const count = state.vendorCounts.get(vendor);
+    const item = document.createElement("li");
+    item.innerHTML = `<strong>${vendor}</strong><span>x${count}</span>`;
+    elements.vendorList.appendChild(item);
+  });
+
+  const hasItems = selectedVendors.length > 0;
+  elements.emptyVendorText.hidden = hasItems;
+  elements.clearVendorButton.disabled = !hasItems;
+}
+
+async function handlePhotoChange(event) {
+  const input = event.currentTarget;
+  const file = input.files && input.files[0];
+  const step = input.dataset.step;
+
+  if (!file || !step || !PHOTO_LABELS[step]) {
+    input.value = "";
+    return;
+  }
+
+  setCopyStatus(`${step} 圖片處理中...`, "");
+
+  try {
+    const capturedAt = new Date();
+    const result = await annotatePhoto(file, step, capturedAt);
+    updatePhotoPreview(step, result);
+    setCopyStatus(`${step} 圖片已產生。`, "success");
+  } catch (error) {
+    console.error(error);
+    alert("圖片處理失敗，請重新拍照。");
+    setCopyStatus("圖片處理失敗。", "error");
+  } finally {
+    input.value = "";
+  }
+}
+
+async function annotatePhoto(file, step, capturedAt) {
+  const source = await decodeImage(file);
+  const sourceWidth = source.naturalWidth || source.width;
+  const sourceHeight = source.naturalHeight || source.height;
+  const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d", { alpha: false });
+  context.drawImage(source, 0, 0, width, height);
+  drawPhotoOverlay(context, width, step, formatDisplayDate(capturedAt));
+
+  if (typeof source.close === "function") {
+    source.close();
+  }
+
+  const blob = await canvasToBlob(canvas);
+  const url = URL.createObjectURL(blob);
+
+  return {
+    blob,
+    url,
+    fileName: `${step}_${formatFileDate(capturedAt)}.jpg`,
+  };
+}
+
+async function decodeImage(file) {
+  if ("createImageBitmap" in window) {
+    try {
+      return await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch (error) {
+      console.warn("createImageBitmap failed, falling back to HTMLImageElement.", error);
+    }
+  }
+
+  const url = URL.createObjectURL(file);
+  const image = new Image();
+  image.decoding = "async";
+  image.src = url;
+
+  try {
+    if (image.decode) {
+      await image.decode();
+    } else {
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = reject;
+      });
+    }
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+
+  return image;
+}
+
+function drawPhotoOverlay(context, width, step, timestampText) {
+  const padding = clamp(Math.round(width * 0.026), 18, 48);
+  const titleSize = clamp(Math.round(width * 0.052), 30, 86);
+  const bodySize = clamp(Math.round(width * 0.034), 23, 58);
+  const maxTextWidth = width - padding * 2;
+
+  context.textBaseline = "top";
+  context.textAlign = "left";
+
+  const fontFamily =
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+
+  context.font = `850 ${bodySize}px ${fontFamily}`;
+  const detailLines = wrapText(context, PHOTO_LABELS[step], maxTextWidth);
+  const titleLineHeight = Math.round(titleSize * 1.12);
+  const bodyLineHeight = Math.round(bodySize * 1.36);
+  const backgroundHeight =
+    padding * 2 + titleLineHeight + detailLines.length * bodyLineHeight + bodyLineHeight;
+
+  context.fillStyle = "rgba(0, 0, 0, 0.72)";
+  context.fillRect(0, 0, width, backgroundHeight);
+
+  context.shadowColor = "rgba(0, 0, 0, 0.45)";
+  context.shadowBlur = Math.max(3, Math.round(width * 0.004));
+  context.shadowOffsetX = 1;
+  context.shadowOffsetY = 1;
+  context.fillStyle = "#ffffff";
+
+  let y = padding;
+  context.font = `900 ${titleSize}px ${fontFamily}`;
+  context.fillText(step, padding, y, maxTextWidth);
+
+  y += titleLineHeight;
+  context.font = `850 ${bodySize}px ${fontFamily}`;
+  detailLines.forEach((line) => {
+    context.fillText(line, padding, y, maxTextWidth);
+    y += bodyLineHeight;
+  });
+
+  context.fillText(timestampText, padding, y, maxTextWidth);
+
+  context.shadowColor = "transparent";
+  context.shadowBlur = 0;
+  context.shadowOffsetX = 0;
+  context.shadowOffsetY = 0;
+}
+
+function wrapText(context, text, maxWidth) {
+  const tokens = text.includes(" ") ? text.split(/(\s+)/) : Array.from(text);
+  const lines = [];
+  let line = "";
+
+  tokens.forEach((token) => {
+    const testLine = line + token;
+    const testWidth = context.measureText(testLine).width;
+
+    if (testWidth > maxWidth && line) {
+      lines.push(line.trimEnd());
+      line = token.trimStart();
+      return;
+    }
+
+    line = testLine;
+  });
+
+  if (line) {
+    lines.push(line.trim());
+  }
+
+  return lines;
+}
+
+function canvasToBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+          return;
+        }
+
+        reject(new Error("Canvas failed to create image blob."));
+      },
+      "image/jpeg",
+      JPEG_QUALITY,
+    );
+  });
+}
+
+function updatePhotoPreview(step, photo) {
+  const previousPhoto = state.photos[step];
+  if (previousPhoto && previousPhoto.url) {
+    URL.revokeObjectURL(previousPhoto.url);
+  }
+
+  state.photos[step] = photo;
+
+  const image = document.createElement("img");
+  image.src = photo.url;
+  image.alt = `${step} 標示後圖片`;
+
+  const preview = elements.previews[step];
+  preview.innerHTML = "";
+  preview.appendChild(image);
+
+  const download = elements.downloads[step];
+  download.href = photo.url;
+  download.download = photo.fileName;
+  download.hidden = false;
+}
+
+async function copyReportText() {
+  const vendorText = getVendorReportText();
+  const staff = elements.staffSelect.value;
+
+  if (!vendorText) {
+    hideReportOutput();
+    alert("請先加入外包商箱數");
+    setCopyStatus("請先加入外包商箱數。", "error");
+    return;
+  }
+
+  if (!staff) {
+    hideReportOutput();
+    alert("請先選擇出貨人員");
+    setCopyStatus("請先選擇出貨人員。", "error");
+    return;
+  }
+
+  const reportText = [
+    "【今日外包出貨確認】",
+    "",
+    `外包商箱數：${vendorText}`,
+    "",
+    `出貨人員：${staff}`,
+    "",
+    PHOTO_LABELS.P1,
+    PHOTO_LABELS.P2,
+    PHOTO_LABELS.P3,
+  ].join("\n");
+
+  showReportOutput(reportText);
+
+  try {
+    await writeTextToClipboard(reportText, elements.reportOutput);
+    setCopyStatus("資訊已複製。", "success");
+  } catch (error) {
+    console.error(error);
+    alert("複製失敗，請長按下方文字手動複製。");
+    setCopyStatus("複製失敗，請使用下方文字。", "error");
+  }
+}
+
+function getVendorReportText() {
+  return VENDORS.filter((vendor) => {
+    return (state.vendorCounts.get(vendor) || 0) > 0;
+  })
+    .map((vendor) => `${vendor}x${state.vendorCounts.get(vendor)}`)
+    .join("，");
+}
+
+async function writeTextToClipboard(text, fallbackTextarea) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch (error) {
+      console.warn("navigator.clipboard.writeText failed, falling back to execCommand.", error);
+    }
+  }
+
+  const textarea = fallbackTextarea || document.createElement("textarea");
+  const shouldRemoveTextarea = !fallbackTextarea;
+
+  if (!fallbackTextarea) {
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.top = "0";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+  }
+
+  textarea.focus();
+  textarea.select();
+
+  try {
+    const copied = document.execCommand("copy");
+    if (!copied) {
+      throw new Error("document.execCommand('copy') returned false.");
+    }
+  } finally {
+    if (shouldRemoveTextarea) {
+      document.body.removeChild(textarea);
+    }
+  }
+}
+
+function showReportOutput(text) {
+  elements.reportOutput.value = text;
+  elements.reportOutput.hidden = false;
+}
+
+function hideReportOutput() {
+  elements.reportOutput.value = "";
+  elements.reportOutput.hidden = true;
+}
+
+function setCopyStatus(message, type) {
+  elements.copyStatus.textContent = message;
+  elements.copyStatus.className = "status-text";
+
+  if (type) {
+    elements.copyStatus.classList.add(type);
+  }
+}
+
+function formatDisplayDate(date) {
+  return `${date.getFullYear()}/${pad2(date.getMonth() + 1)}/${pad2(date.getDate())} ${pad2(
+    date.getHours(),
+  )}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+}
+
+function formatFileDate(date) {
+  return `${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}_${pad2(
+    date.getHours(),
+  )}${pad2(date.getMinutes())}${pad2(date.getSeconds())}`;
+}
+
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}

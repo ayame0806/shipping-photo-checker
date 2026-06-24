@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#2563eb" />
+    <title>今日外包出貨確認</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="page-header">
+        <p class="eyebrow">出貨拍照回報</p>
+        <h1>今日外包出貨確認</h1>
+      </header>
+
+      <section class="section" aria-labelledby="vendors-title">
+        <div class="section-header">
+          <h2 id="vendors-title">外包商箱數</h2>
+        </div>
+
+        <div class="form-grid">
+          <label class="field">
+            <span>廠商</span>
+            <select id="vendorSelect">
+              <option value="亞克">亞克</option>
+              <option value="鎧鉅">鎧鉅</option>
+              <option value="馗鼎">馗鼎</option>
+              <option value="大寶鈦金">大寶鈦金</option>
+              <option value="亞洲科匯">亞洲科匯</option>
+              <option value="聖釭">聖釭</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>箱數</span>
+            <select id="boxCountSelect">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+            </select>
+          </label>
+
+          <button id="addVendorButton" class="button button-primary" type="button">
+            加入
+          </button>
+        </div>
+
+        <div class="list-panel" aria-live="polite">
+          <div class="list-panel-header">
+            <h3>目前清單</h3>
+            <button id="clearVendorButton" class="button button-ghost" type="button">
+              清除清單
+            </button>
+          </div>
+          <ul id="vendorList" class="vendor-list"></ul>
+          <p id="emptyVendorText" class="empty-text">尚未加入外包商箱數</p>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="staff-title">
+        <div class="section-header">
+          <h2 id="staff-title">出貨人員</h2>
+        </div>
+
+        <label class="field">
+          <span>人員</span>
+          <select id="staffSelect">
+            <option value="">請選擇出貨人員</option>
+            <option value="蕭伊呈">蕭伊呈</option>
+            <option value="甘家瑋">甘家瑋</option>
+            <option value="洪凱筠">洪凱筠</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="section" aria-labelledby="photos-title">
+        <div class="section-header">
+          <h2 id="photos-title">P1 / P2 / P3 拍照</h2>
+        </div>
+
+        <div class="photo-stack">
+          <article class="photo-card">
+            <div class="photo-card-header">
+              <div>
+                <span class="step-badge">P1</span>
+                <h3>刀盒/填充物/螺絲 確認</h3>
+              </div>
+              <label class="button button-camera" for="photoP1">P1 拍照</label>
+              <input
+                id="photoP1"
+                class="camera-input"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                data-step="P1"
+              />
+            </div>
+            <div id="previewP1" class="preview-frame">
+              <span>尚未拍照</span>
+            </div>
+            <a id="downloadP1" class="button button-download" href="#" download hidden>
+              下載 P1 圖片
+            </a>
+          </article>
+
+          <article class="photo-card">
+            <div class="photo-card-header">
+              <div>
+                <span class="step-badge">P2</span>
+                <h3>箱內填充確認</h3>
+              </div>
+              <label class="button button-camera" for="photoP2">P2 拍照</label>
+              <input
+                id="photoP2"
+                class="camera-input"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                data-step="P2"
+              />
+            </div>
+            <div id="previewP2" class="preview-frame">
+              <span>尚未拍照</span>
+            </div>
+            <a id="downloadP2" class="button button-download" href="#" download hidden>
+              下載 P2 圖片
+            </a>
+          </article>
+
+          <article class="photo-card">
+            <div class="photo-card-header">
+              <div>
+                <span class="step-badge">P3</span>
+                <h3>箱外束帶/膠帶固定、地址確認</h3>
+              </div>
+              <label class="button button-camera" for="photoP3">P3 拍照</label>
+              <input
+                id="photoP3"
+                class="camera-input"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                data-step="P3"
+              />
+            </div>
+            <div id="previewP3" class="preview-frame">
+              <span>尚未拍照</span>
+            </div>
+            <a id="downloadP3" class="button button-download" href="#" download hidden>
+              下載 P3 圖片
+            </a>
+          </article>
+        </div>
+      </section>
+
+      <section class="section copy-section" aria-labelledby="copy-title">
+        <div class="section-header">
+          <h2 id="copy-title">LINE 回報文字</h2>
+        </div>
+        <button id="copyInfoButton" class="button button-copy" type="button">
+          複製資訊
+        </button>
+        <p id="copyStatus" class="status-text" role="status" aria-live="polite"></p>
+        <textarea
+          id="reportOutput"
+          class="report-output"
+          aria-label="LINE 回報文字"
+          readonly
+          hidden
+        ></textarea>
+      </section>
+    </main>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>
