@@ -217,7 +217,8 @@ a:focus-visible {
 }
 
 .button-camera {
-  min-width: 108px;
+  width: 100%;
+  min-width: 0;
   background: var(--primary);
   white-space: nowrap;
 }
@@ -236,6 +237,11 @@ a:focus-visible {
 
 .button-download:hover {
   background: #d1fae5;
+}
+
+.button-clear-photo {
+  width: 100%;
+  margin-top: 10px;
 }
 
 .button-copy {
@@ -305,23 +311,11 @@ a:focus-visible {
   line-height: 1.5;
 }
 
-.photo-stack {
+.shot-buttons {
   display: grid;
-  gap: 12px;
-}
-
-.photo-card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: #ffffff;
-  padding: 12px;
-}
-
-.photo-card-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .step-badge {

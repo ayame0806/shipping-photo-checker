@@ -2,13 +2,13 @@
 
 const VENDORS = ["亞克", "鎧鉅", "馗鼎", "大寶鈦金", "亞洲科匯", "聖釭"];
 
-const PHOTO_LABELS = {
+const REPORT_LABELS = {
   P1: "P1－刀盒/填充物/螺絲 確認",
   P2: "P2－箱內填充確認",
   P3: "P3－箱外束帶/膠帶固定、地址確認",
 };
 
-const PHOTO_TITLES = {
+const PHOTO_MARKS = {
   P1: "刀盒/填充物/螺絲 確認",
   P2: "箱內填充確認",
   P3: "箱外束帶/膠帶固定、地址確認",
@@ -20,12 +20,8 @@ const JPEG_QUALITY = 0.95;
 const state = {
   activeStep: null,
   cameraStream: null,
+  currentPhoto: null,
   vendorCounts: new Map(),
-  photos: {
-    P1: null,
-    P2: null,
-    P3: null,
-  },
 };
 
 const elements = {
@@ -39,24 +35,16 @@ const elements = {
   cameraButtons: document.querySelectorAll("[data-camera-step]"),
   cameraPanel: document.querySelector("#cameraPanel"),
   cameraStepBadge: document.querySelector("#cameraStepBadge"),
-  cameraTitle: document.querySelector("#cameraTitle"),
   cameraVideo: document.querySelector("#cameraVideo"),
   cameraStatus: document.querySelector("#cameraStatus"),
   captureCameraButton: document.querySelector("#captureCameraButton"),
   closeCameraButton: document.querySelector("#closeCameraButton"),
+  photoPreview: document.querySelector("#photoPreview"),
+  downloadPhoto: document.querySelector("#downloadPhoto"),
+  clearPhotoButton: document.querySelector("#clearPhotoButton"),
   copyInfoButton: document.querySelector("#copyInfoButton"),
   copyStatus: document.querySelector("#copyStatus"),
   reportOutput: document.querySelector("#reportOutput"),
-  previews: {
-    P1: document.querySelector("#previewP1"),
-    P2: document.querySelector("#previewP2"),
-    P3: document.querySelector("#previewP3"),
-  },
-  downloads: {
-    P1: document.querySelector("#downloadP1"),
-    P2: document.querySelector("#downloadP2"),
-    P3: document.querySelector("#downloadP3"),
-  },
 };
 
 elements.addVendorButton.addEventListener("click", addVendorCount);
@@ -64,6 +52,7 @@ elements.clearVendorButton.addEventListener("click", clearVendorCounts);
 elements.copyInfoButton.addEventListener("click", copyReportText);
 elements.captureCameraButton.addEventListener("click", captureCurrentPhoto);
 elements.closeCameraButton.addEventListener("click", stopCamera);
+elements.clearPhotoButton.addEventListener("click", clearCurrentPhoto);
 elements.cameraButtons.forEach((button) => {
   button.addEventListener("click", () => {
     startCamera(button.dataset.cameraStep);
@@ -119,7 +108,7 @@ function renderVendorList() {
 }
 
 async function startCamera(step) {
-  if (!PHOTO_LABELS[step]) {
+  if (!PHOTO_MARKS[step]) {
     return;
   }
 
@@ -132,7 +121,6 @@ async function startCamera(step) {
 
   state.activeStep = step;
   elements.cameraStepBadge.textContent = step;
-  elements.cameraTitle.textContent = PHOTO_TITLES[step];
   elements.cameraPanel.hidden = false;
   elements.captureCameraButton.disabled = true;
   setCameraStatus("正在開啟相機...");
@@ -192,7 +180,7 @@ async function captureCurrentPhoto() {
   try {
     const capturedAt = new Date();
     const result = await annotateVideoFrame(video, step, capturedAt);
-    updatePhotoPreview(step, result);
+    updatePhotoPreview(result);
     stopCamera();
     setCopyStatus(`${step} 圖片已產生。`, "success");
   } catch (error) {
@@ -238,6 +226,7 @@ async function annotateVideoFrame(video, step, capturedAt) {
   return {
     blob,
     url,
+    step,
     fileName: `${step}_${formatFileDate(capturedAt)}.jpg`,
   };
 }
@@ -255,7 +244,7 @@ function drawPhotoOverlay(context, width, step, timestampText) {
     '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif';
 
   context.font = `850 ${bodySize}px ${fontFamily}`;
-  const detailLines = wrapText(context, PHOTO_LABELS[step], maxTextWidth);
+  const detailLines = wrapText(context, PHOTO_MARKS[step], maxTextWidth);
   const titleLineHeight = Math.round(titleSize * 1.12);
   const bodyLineHeight = Math.round(bodySize * 1.36);
   const backgroundHeight =
@@ -331,26 +320,35 @@ function canvasToBlob(canvas) {
   });
 }
 
-function updatePhotoPreview(step, photo) {
-  const previousPhoto = state.photos[step];
-  if (previousPhoto && previousPhoto.url) {
-    URL.revokeObjectURL(previousPhoto.url);
-  }
+function updatePhotoPreview(photo) {
+  clearCurrentPhoto();
 
-  state.photos[step] = photo;
+  state.currentPhoto = photo;
 
   const image = document.createElement("img");
   image.src = photo.url;
-  image.alt = `${step} 標示後圖片`;
+  image.alt = `${photo.step} 標示後圖片`;
 
-  const preview = elements.previews[step];
-  preview.innerHTML = "";
-  preview.appendChild(image);
+  elements.photoPreview.innerHTML = "";
+  elements.photoPreview.appendChild(image);
+  elements.downloadPhoto.href = photo.url;
+  elements.downloadPhoto.download = photo.fileName;
+  elements.downloadPhoto.textContent = `儲存 ${photo.step} 圖片`;
+  elements.downloadPhoto.hidden = false;
+  elements.clearPhotoButton.hidden = false;
+}
 
-  const download = elements.downloads[step];
-  download.href = photo.url;
-  download.download = photo.fileName;
-  download.hidden = false;
+function clearCurrentPhoto() {
+  if (state.currentPhoto && state.currentPhoto.url) {
+    URL.revokeObjectURL(state.currentPhoto.url);
+  }
+
+  state.currentPhoto = null;
+  elements.photoPreview.innerHTML = "<span>尚未拍照</span>";
+  elements.downloadPhoto.removeAttribute("href");
+  elements.downloadPhoto.removeAttribute("download");
+  elements.downloadPhoto.hidden = true;
+  elements.clearPhotoButton.hidden = true;
 }
 
 async function copyReportText() {
@@ -378,9 +376,9 @@ async function copyReportText() {
     "",
     `出貨人員：${staff}`,
     "",
-    PHOTO_LABELS.P1,
-    PHOTO_LABELS.P2,
-    PHOTO_LABELS.P3,
+    REPORT_LABELS.P1,
+    REPORT_LABELS.P2,
+    REPORT_LABELS.P3,
   ].join("\n");
 
   showReportOutput(reportText);

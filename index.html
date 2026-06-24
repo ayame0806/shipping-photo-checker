@@ -81,89 +81,6 @@
         </label>
       </section>
 
-      <section class="section" aria-labelledby="photos-title">
-        <div class="section-header">
-          <h2 id="photos-title">P1 / P2 / P3 拍照</h2>
-        </div>
-
-        <div id="cameraPanel" class="camera-panel" hidden>
-          <div class="camera-panel-header">
-            <div>
-              <span id="cameraStepBadge" class="step-badge">P1</span>
-              <h3 id="cameraTitle">刀盒/填充物/螺絲 確認</h3>
-            </div>
-            <button id="closeCameraButton" class="button button-ghost" type="button">
-              取消
-            </button>
-          </div>
-          <div class="camera-view">
-            <video id="cameraVideo" autoplay muted playsinline></video>
-          </div>
-          <div class="camera-actions">
-            <button id="captureCameraButton" class="button button-copy" type="button">
-              拍照
-            </button>
-          </div>
-          <p id="cameraStatus" class="status-text" role="status" aria-live="polite"></p>
-        </div>
-
-        <div class="photo-stack">
-          <article class="photo-card">
-            <div class="photo-card-header">
-              <div>
-                <span class="step-badge">P1</span>
-                <h3>刀盒/填充物/螺絲 確認</h3>
-              </div>
-              <button class="button button-camera" type="button" data-camera-step="P1">
-                P1 拍照
-              </button>
-            </div>
-            <div id="previewP1" class="preview-frame">
-              <span>尚未拍照</span>
-            </div>
-            <a id="downloadP1" class="button button-download" href="#" download hidden>
-              儲存 P1 圖片
-            </a>
-          </article>
-
-          <article class="photo-card">
-            <div class="photo-card-header">
-              <div>
-                <span class="step-badge">P2</span>
-                <h3>箱內填充確認</h3>
-              </div>
-              <button class="button button-camera" type="button" data-camera-step="P2">
-                P2 拍照
-              </button>
-            </div>
-            <div id="previewP2" class="preview-frame">
-              <span>尚未拍照</span>
-            </div>
-            <a id="downloadP2" class="button button-download" href="#" download hidden>
-              儲存 P2 圖片
-            </a>
-          </article>
-
-          <article class="photo-card">
-            <div class="photo-card-header">
-              <div>
-                <span class="step-badge">P3</span>
-                <h3>箱外束帶/膠帶固定、地址確認</h3>
-              </div>
-              <button class="button button-camera" type="button" data-camera-step="P3">
-                P3 拍照
-              </button>
-            </div>
-            <div id="previewP3" class="preview-frame">
-              <span>尚未拍照</span>
-            </div>
-            <a id="downloadP3" class="button button-download" href="#" download hidden>
-              儲存 P3 圖片
-            </a>
-          </article>
-        </div>
-      </section>
-
       <section class="section copy-section" aria-labelledby="copy-title">
         <div class="section-header">
           <h2 id="copy-title">LINE 回報文字</h2>
@@ -179,6 +96,46 @@
           readonly
           hidden
         ></textarea>
+      </section>
+
+      <section class="section" aria-labelledby="photos-title">
+        <div class="section-header">
+          <h2 id="photos-title">拍照</h2>
+        </div>
+
+        <div class="shot-buttons" aria-label="拍照項目">
+          <button class="button button-camera" type="button" data-camera-step="P1">P1</button>
+          <button class="button button-camera" type="button" data-camera-step="P2">P2</button>
+          <button class="button button-camera" type="button" data-camera-step="P3">P3</button>
+        </div>
+
+        <div id="cameraPanel" class="camera-panel" hidden>
+          <div class="camera-panel-header">
+            <span id="cameraStepBadge" class="step-badge">P1</span>
+            <button id="closeCameraButton" class="button button-ghost" type="button">
+              取消
+            </button>
+          </div>
+          <div class="camera-view">
+            <video id="cameraVideo" autoplay muted playsinline></video>
+          </div>
+          <div class="camera-actions">
+            <button id="captureCameraButton" class="button button-copy" type="button">
+              拍照
+            </button>
+          </div>
+          <p id="cameraStatus" class="status-text" role="status" aria-live="polite"></p>
+        </div>
+
+        <div id="photoPreview" class="preview-frame">
+          <span>尚未拍照</span>
+        </div>
+        <a id="downloadPhoto" class="button button-download" href="#" download hidden>
+          儲存圖片
+        </a>
+        <button id="clearPhotoButton" class="button button-ghost button-clear-photo" type="button" hidden>
+          已存檔，清除照片
+        </button>
       </section>
     </main>
 
