@@ -39,6 +39,7 @@ const elements = {
   cameraVideo: document.querySelector("#cameraVideo"),
   cameraStatus: document.querySelector("#cameraStatus"),
   photoStatus: document.querySelector("#photoStatus"),
+  quickModeCheckbox: document.querySelector("#quickModeCheckbox"),
   captureCameraButton: document.querySelector("#captureCameraButton"),
   closeCameraButton: document.querySelector("#closeCameraButton"),
   photoPreview: document.querySelector("#photoPreview"),
@@ -56,6 +57,10 @@ elements.captureCameraButton.addEventListener("click", captureCurrentPhoto);
 elements.closeCameraButton.addEventListener("click", stopCamera);
 elements.clearPhotoButton.addEventListener("click", clearCurrentPhoto);
 elements.downloadPhoto.addEventListener("click", () => {
+  if (elements.quickModeCheckbox.checked) {
+    return;
+  }
+
   setPhotoStatus("確認手機已存檔後，按「已存檔，清除照片」。", "success");
 });
 elements.cameraButtons.forEach((button) => {
@@ -224,6 +229,14 @@ async function captureCurrentPhoto() {
     updatePhotoPreview(result);
     stopCamera();
     setCopyStatus(`${step} 圖片已產生。`, "success");
+
+    if (elements.quickModeCheckbox.checked) {
+      saveCurrentPhoto();
+      setPhotoStatus(`${step} 圖片已自動儲存，正在清除預覽。`, "success");
+      window.setTimeout(clearCurrentPhoto, 900);
+      return;
+    }
+
     setPhotoStatus(`${step} 圖片已產生，請儲存圖片。`, "success");
   } catch (error) {
     console.error(error);
@@ -378,6 +391,14 @@ function updatePhotoPreview(photo) {
   elements.downloadPhoto.textContent = `儲存 ${photo.step} 圖片`;
   elements.downloadPhoto.hidden = false;
   elements.clearPhotoButton.hidden = false;
+}
+
+function saveCurrentPhoto() {
+  if (!state.currentPhoto || !elements.downloadPhoto.href) {
+    return;
+  }
+
+  elements.downloadPhoto.click();
 }
 
 function clearCurrentPhoto() {
