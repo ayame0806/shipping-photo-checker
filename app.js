@@ -150,7 +150,7 @@ async function startCamera(step) {
   stopCamera();
 
   state.activeStep = step;
-  elements.cameraStepBadge.textContent = step;
+  elements.cameraStepBadge.textContent = getModeTitle(step);
   setActiveShotButton(step);
   elements.cameraPanel.hidden = false;
   syncQuickModeView();
@@ -522,6 +522,10 @@ function setActiveShotButton(step) {
   elements.cameraButtons.forEach((button) => {
     button.classList.toggle("is-active", button.dataset.cameraStep === step);
   });
+}
+
+function getModeTitle(step) {
+  return `${step} - ${PHOTO_MARKS[step]}`;
 }
 
 async function copyReportText() {
