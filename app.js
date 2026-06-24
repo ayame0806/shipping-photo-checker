@@ -228,9 +228,17 @@ async function captureCurrentPhoto() {
   try {
     const capturedAt = new Date();
     const result = await annotateVideoFrame(video, step, capturedAt);
-    updatePhotoPreview(result);
     stopCamera();
     setCopyStatus(`${step} 圖片已產生。`, "success");
+
+    if (elements.quickModeCheckbox.checked) {
+      downloadPhotoImmediately(result);
+      setPhotoStatus(`${step} 圖片已直接儲存，預覽已清除。`, "success");
+      window.setTimeout(clearCurrentPhoto, 900);
+      return;
+    }
+
+    updatePhotoPreview(result);
     setPhotoStatus(`${step} 圖片已產生，請按「儲存 ${step} 圖片」。`, "success");
   } catch (error) {
     console.error(error);
@@ -385,6 +393,15 @@ function updatePhotoPreview(photo) {
   elements.downloadPhoto.textContent = `儲存 ${photo.step} 圖片`;
   elements.downloadPhoto.hidden = false;
   elements.clearPhotoButton.hidden = false;
+}
+
+function downloadPhotoImmediately(photo) {
+  clearCurrentPhoto();
+
+  state.currentPhoto = photo;
+  elements.downloadPhoto.href = photo.url;
+  elements.downloadPhoto.download = photo.fileName;
+  elements.downloadPhoto.click();
 }
 
 function clearCurrentPhoto() {
