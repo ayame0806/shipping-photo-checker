@@ -218,8 +218,11 @@ a:focus-visible {
 
 .button-camera {
   width: 100%;
+  min-height: 38px;
   min-width: 0;
+  padding: 0 6px;
   background: var(--primary);
+  font-size: 0.95rem;
   white-space: nowrap;
 }
 
@@ -314,8 +317,12 @@ a:focus-visible {
 .shot-buttons {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.shot-buttons .button {
+  box-shadow: none;
 }
 
 .step-badge {

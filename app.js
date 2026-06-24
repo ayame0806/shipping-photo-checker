@@ -21,6 +21,7 @@ const state = {
   activeStep: null,
   cameraStream: null,
   currentPhoto: null,
+  permissionProbePromise: null,
   vendorCounts: new Map(),
 };
 
@@ -37,6 +38,7 @@ const elements = {
   cameraStepBadge: document.querySelector("#cameraStepBadge"),
   cameraVideo: document.querySelector("#cameraVideo"),
   cameraStatus: document.querySelector("#cameraStatus"),
+  photoStatus: document.querySelector("#photoStatus"),
   captureCameraButton: document.querySelector("#captureCameraButton"),
   closeCameraButton: document.querySelector("#closeCameraButton"),
   photoPreview: document.querySelector("#photoPreview"),
@@ -53,6 +55,9 @@ elements.copyInfoButton.addEventListener("click", copyReportText);
 elements.captureCameraButton.addEventListener("click", captureCurrentPhoto);
 elements.closeCameraButton.addEventListener("click", stopCamera);
 elements.clearPhotoButton.addEventListener("click", clearCurrentPhoto);
+elements.downloadPhoto.addEventListener("click", () => {
+  setPhotoStatus("確認手機已存檔後，按「已存檔，清除照片」。", "success");
+});
 elements.cameraButtons.forEach((button) => {
   button.addEventListener("click", () => {
     startCamera(button.dataset.cameraStep);
@@ -62,6 +67,7 @@ elements.cameraButtons.forEach((button) => {
 window.addEventListener("pagehide", stopCamera);
 
 renderVendorList();
+state.permissionProbePromise = warmUpCameraPermission();
 
 function addVendorCount() {
   const vendor = elements.vendorSelect.value;
@@ -113,8 +119,15 @@ async function startCamera(step) {
   }
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    alert("此瀏覽器不支援直接開相機，請使用手機 Safari 或 Chrome 開啟 HTTPS 網址。");
+    const message = "此瀏覽器不支援直接開相機，請使用手機 Safari 或 Chrome 開啟 HTTPS 網址。";
+    setPhotoStatus(message, "error");
+    alert(message);
     return;
+  }
+
+  if (state.permissionProbePromise) {
+    setPhotoStatus("正在等待相機權限確認...");
+    await state.permissionProbePromise;
   }
 
   stopCamera();
@@ -124,6 +137,7 @@ async function startCamera(step) {
   elements.cameraPanel.hidden = false;
   elements.captureCameraButton.disabled = true;
   setCameraStatus("正在開啟相機...");
+  setPhotoStatus(`${step} 正在開啟相機...`);
   elements.cameraPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 
   try {
@@ -133,10 +147,33 @@ async function startCamera(step) {
     await elements.cameraVideo.play();
     elements.captureCameraButton.disabled = false;
     setCameraStatus("對準後按「拍照」。");
+    setPhotoStatus("相機已開啟。");
   } catch (error) {
     console.error(error);
     stopCamera();
-    alert("無法開啟相機，請確認已允許相機權限，並使用 HTTPS 網址。");
+    const message = getCameraErrorMessage(error);
+    setPhotoStatus(message, "error");
+    alert(message);
+  }
+}
+
+async function warmUpCameraPermission() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setPhotoStatus("此瀏覽器不支援直接開相機，請改用手機 Safari 或 Chrome。", "error");
+    return;
+  }
+
+  setPhotoStatus("正在詢問相機權限...");
+
+  try {
+    const stream = await requestEnvironmentCamera();
+    stream.getTracks().forEach((track) => track.stop());
+    setPhotoStatus("相機權限已允許，請按 P1 / P2 / P3 拍照。", "success");
+  } catch (error) {
+    console.warn("Camera permission probe failed.", error);
+    setPhotoStatus(getCameraErrorMessage(error), "error");
+  } finally {
+    state.permissionProbePromise = null;
   }
 }
 
@@ -155,6 +192,10 @@ async function requestEnvironmentCamera() {
       },
     });
   } catch (error) {
+    if (error && (error.name === "NotAllowedError" || error.name === "SecurityError")) {
+      throw error;
+    }
+
     return navigator.mediaDevices.getUserMedia({
       audio: false,
       video: {
@@ -183,6 +224,7 @@ async function captureCurrentPhoto() {
     updatePhotoPreview(result);
     stopCamera();
     setCopyStatus(`${step} 圖片已產生。`, "success");
+    setPhotoStatus(`${step} 圖片已產生，請儲存圖片。`, "success");
   } catch (error) {
     console.error(error);
     elements.captureCameraButton.disabled = false;
@@ -349,6 +391,7 @@ function clearCurrentPhoto() {
   elements.downloadPhoto.removeAttribute("download");
   elements.downloadPhoto.hidden = true;
   elements.clearPhotoButton.hidden = true;
+  setPhotoStatus("目前照片已清除。");
 }
 
 async function copyReportText() {
@@ -459,6 +502,43 @@ function setCopyStatus(message, type) {
 
 function setCameraStatus(message) {
   elements.cameraStatus.textContent = message;
+}
+
+function setPhotoStatus(message, type) {
+  elements.photoStatus.textContent = message;
+  elements.photoStatus.className = "status-text";
+
+  if (type) {
+    elements.photoStatus.classList.add(type);
+  }
+}
+
+function getCameraErrorMessage(error) {
+  if (!window.isSecureContext) {
+    return "相機需要 HTTPS 網址，請用 GitHub Pages 網址開啟。";
+  }
+
+  if (!error || !error.name) {
+    return "無法開啟相機，請確認瀏覽器允許相機權限。";
+  }
+
+  if (error.name === "NotAllowedError" || error.name === "SecurityError") {
+    return "相機權限未允許，請在瀏覽器設定中允許此網站使用相機。";
+  }
+
+  if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+    return "找不到可用相機，請確認手機相機可正常使用。";
+  }
+
+  if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+    return "相機正在被其他 App 使用，請關閉其他相機程式後再試。";
+  }
+
+  if (error.name === "OverconstrainedError" || error.name === "ConstraintNotSatisfiedError") {
+    return "無法使用後鏡頭，請再按一次或改用支援相機的手機瀏覽器。";
+  }
+
+  return `無法開啟相機：${error.name}`;
 }
 
 function formatDisplayDate(date) {
