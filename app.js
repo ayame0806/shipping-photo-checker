@@ -73,6 +73,12 @@ elements.cameraButtons.forEach((button) => {
 });
 
 window.addEventListener("pagehide", stopCamera);
+window.addEventListener("pageshow", resumeSelectedCameraIfNeeded);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    resumeSelectedCameraIfNeeded();
+  }
+});
 
 renderVendorList();
 syncQuickModeView();
@@ -241,6 +247,7 @@ async function captureCurrentPhoto() {
       elements.captureCameraButton.disabled = false;
       setCameraStatus("可繼續拍照。");
       setPhotoStatus(`${step} 圖片已直接儲存，可繼續拍照。`, "success");
+      window.setTimeout(resumeSelectedCameraIfNeeded, 700);
       return;
     }
 
@@ -269,6 +276,35 @@ function stopCamera() {
   elements.cameraPanel.hidden = true;
   elements.captureCameraButton.disabled = false;
   setCameraStatus("");
+}
+
+async function resumeSelectedCameraIfNeeded() {
+  if (!state.selectedStep || document.hidden) {
+    return;
+  }
+
+  if (isCameraLive()) {
+    if (elements.cameraVideo.paused) {
+      try {
+        await elements.cameraVideo.play();
+      } catch (error) {
+        console.warn("Unable to resume camera video playback.", error);
+      }
+    }
+
+    elements.captureCameraButton.disabled = false;
+    return;
+  }
+
+  await startCamera(state.selectedStep);
+}
+
+function isCameraLive() {
+  if (!state.cameraStream || !elements.cameraVideo.srcObject) {
+    return false;
+  }
+
+  return state.cameraStream.getVideoTracks().some((track) => track.readyState === "live");
 }
 
 function exitPhotoMode() {
