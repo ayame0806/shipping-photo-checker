@@ -8,10 +8,18 @@ const PHOTO_LABELS = {
   P3: "P3－箱外束帶/膠帶固定、地址確認",
 };
 
+const PHOTO_TITLES = {
+  P1: "刀盒/填充物/螺絲 確認",
+  P2: "箱內填充確認",
+  P3: "箱外束帶/膠帶固定、地址確認",
+};
+
 const MAX_IMAGE_SIDE = 2560;
 const JPEG_QUALITY = 0.95;
 
 const state = {
+  activeStep: null,
+  cameraStream: null,
   vendorCounts: new Map(),
   photos: {
     P1: null,
@@ -28,10 +36,17 @@ const elements = {
   vendorList: document.querySelector("#vendorList"),
   emptyVendorText: document.querySelector("#emptyVendorText"),
   staffSelect: document.querySelector("#staffSelect"),
+  cameraButtons: document.querySelectorAll("[data-camera-step]"),
+  cameraPanel: document.querySelector("#cameraPanel"),
+  cameraStepBadge: document.querySelector("#cameraStepBadge"),
+  cameraTitle: document.querySelector("#cameraTitle"),
+  cameraVideo: document.querySelector("#cameraVideo"),
+  cameraStatus: document.querySelector("#cameraStatus"),
+  captureCameraButton: document.querySelector("#captureCameraButton"),
+  closeCameraButton: document.querySelector("#closeCameraButton"),
   copyInfoButton: document.querySelector("#copyInfoButton"),
   copyStatus: document.querySelector("#copyStatus"),
   reportOutput: document.querySelector("#reportOutput"),
-  photoInputs: document.querySelectorAll(".camera-input"),
   previews: {
     P1: document.querySelector("#previewP1"),
     P2: document.querySelector("#previewP2"),
@@ -47,9 +62,15 @@ const elements = {
 elements.addVendorButton.addEventListener("click", addVendorCount);
 elements.clearVendorButton.addEventListener("click", clearVendorCounts);
 elements.copyInfoButton.addEventListener("click", copyReportText);
-elements.photoInputs.forEach((input) => {
-  input.addEventListener("change", handlePhotoChange);
+elements.captureCameraButton.addEventListener("click", captureCurrentPhoto);
+elements.closeCameraButton.addEventListener("click", stopCamera);
+elements.cameraButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    startCamera(button.dataset.cameraStep);
+  });
 });
+
+window.addEventListener("pagehide", stopCamera);
 
 renderVendorList();
 
@@ -97,36 +118,108 @@ function renderVendorList() {
   elements.clearVendorButton.disabled = !hasItems;
 }
 
-async function handlePhotoChange(event) {
-  const input = event.currentTarget;
-  const file = input.files && input.files[0];
-  const step = input.dataset.step;
-
-  if (!file || !step || !PHOTO_LABELS[step]) {
-    input.value = "";
+async function startCamera(step) {
+  if (!PHOTO_LABELS[step]) {
     return;
   }
 
-  setCopyStatus(`${step} 圖片處理中...`, "");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("此瀏覽器不支援直接開相機，請使用手機 Safari 或 Chrome 開啟 HTTPS 網址。");
+    return;
+  }
+
+  stopCamera();
+
+  state.activeStep = step;
+  elements.cameraStepBadge.textContent = step;
+  elements.cameraTitle.textContent = PHOTO_TITLES[step];
+  elements.cameraPanel.hidden = false;
+  elements.captureCameraButton.disabled = true;
+  setCameraStatus("正在開啟相機...");
+  elements.cameraPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 
   try {
-    const capturedAt = new Date();
-    const result = await annotatePhoto(file, step, capturedAt);
-    updatePhotoPreview(step, result);
-    setCopyStatus(`${step} 圖片已產生。`, "success");
+    const stream = await requestEnvironmentCamera();
+    state.cameraStream = stream;
+    elements.cameraVideo.srcObject = stream;
+    await elements.cameraVideo.play();
+    elements.captureCameraButton.disabled = false;
+    setCameraStatus("對準後按「拍照」。");
   } catch (error) {
     console.error(error);
-    alert("圖片處理失敗，請重新拍照。");
-    setCopyStatus("圖片處理失敗。", "error");
-  } finally {
-    input.value = "";
+    stopCamera();
+    alert("無法開啟相機，請確認已允許相機權限，並使用 HTTPS 網址。");
   }
 }
 
-async function annotatePhoto(file, step, capturedAt) {
-  const source = await decodeImage(file);
-  const sourceWidth = source.naturalWidth || source.width;
-  const sourceHeight = source.naturalHeight || source.height;
+async function requestEnvironmentCamera() {
+  const highResolution = {
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+  };
+
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        ...highResolution,
+        facingMode: { exact: "environment" },
+      },
+    });
+  } catch (error) {
+    return navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        ...highResolution,
+        facingMode: "environment",
+      },
+    });
+  }
+}
+
+async function captureCurrentPhoto() {
+  const step = state.activeStep;
+  const video = elements.cameraVideo;
+
+  if (!step || !video.videoWidth || !video.videoHeight) {
+    alert("相機尚未準備好，請稍候再拍。");
+    return;
+  }
+
+  elements.captureCameraButton.disabled = true;
+  setCameraStatus("照片處理中...");
+
+  try {
+    const capturedAt = new Date();
+    const result = await annotateVideoFrame(video, step, capturedAt);
+    updatePhotoPreview(step, result);
+    stopCamera();
+    setCopyStatus(`${step} 圖片已產生。`, "success");
+  } catch (error) {
+    console.error(error);
+    elements.captureCameraButton.disabled = false;
+    alert("照片處理失敗，請重新拍照。");
+    setCameraStatus("照片處理失敗。");
+  }
+}
+
+function stopCamera() {
+  if (state.cameraStream) {
+    state.cameraStream.getTracks().forEach((track) => track.stop());
+  }
+
+  state.cameraStream = null;
+  state.activeStep = null;
+  elements.cameraVideo.pause();
+  elements.cameraVideo.srcObject = null;
+  elements.cameraPanel.hidden = true;
+  elements.captureCameraButton.disabled = false;
+  setCameraStatus("");
+}
+
+async function annotateVideoFrame(video, step, capturedAt) {
+  const sourceWidth = video.videoWidth;
+  const sourceHeight = video.videoHeight;
   const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(sourceWidth, sourceHeight));
   const width = Math.max(1, Math.round(sourceWidth * scale));
   const height = Math.max(1, Math.round(sourceHeight * scale));
@@ -136,12 +229,8 @@ async function annotatePhoto(file, step, capturedAt) {
   canvas.height = height;
 
   const context = canvas.getContext("2d", { alpha: false });
-  context.drawImage(source, 0, 0, width, height);
+  context.drawImage(video, 0, 0, width, height);
   drawPhotoOverlay(context, width, step, formatDisplayDate(capturedAt));
-
-  if (typeof source.close === "function") {
-    source.close();
-  }
 
   const blob = await canvasToBlob(canvas);
   const url = URL.createObjectURL(blob);
@@ -151,36 +240,6 @@ async function annotatePhoto(file, step, capturedAt) {
     url,
     fileName: `${step}_${formatFileDate(capturedAt)}.jpg`,
   };
-}
-
-async function decodeImage(file) {
-  if ("createImageBitmap" in window) {
-    try {
-      return await createImageBitmap(file, { imageOrientation: "from-image" });
-    } catch (error) {
-      console.warn("createImageBitmap failed, falling back to HTMLImageElement.", error);
-    }
-  }
-
-  const url = URL.createObjectURL(file);
-  const image = new Image();
-  image.decoding = "async";
-  image.src = url;
-
-  try {
-    if (image.decode) {
-      await image.decode();
-    } else {
-      await new Promise((resolve, reject) => {
-        image.onload = resolve;
-        image.onerror = reject;
-      });
-    }
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-
-  return image;
 }
 
 function drawPhotoOverlay(context, width, step, timestampText) {
@@ -398,6 +457,10 @@ function setCopyStatus(message, type) {
   if (type) {
     elements.copyStatus.classList.add(type);
   }
+}
+
+function setCameraStatus(message) {
+  elements.cameraStatus.textContent = message;
 }
 
 function formatDisplayDate(date) {

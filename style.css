@@ -338,12 +338,41 @@ a:focus-visible {
   font-weight: 900;
 }
 
-.camera-input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
+.camera-panel {
+  margin-bottom: 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius);
+  background: #eff6ff;
+  padding: 12px;
+}
+
+.camera-panel-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.camera-view {
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: #020617;
+  aspect-ratio: 3 / 4;
+}
+
+.camera-view video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #020617;
+}
+
+.camera-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .preview-frame {
