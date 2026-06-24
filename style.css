@@ -230,6 +230,10 @@ a:focus-visible {
   background: var(--primary-dark);
 }
 
+.button-camera.is-active {
+  background: var(--accent);
+}
+
 .button-download {
   width: 100%;
   margin-top: 10px;

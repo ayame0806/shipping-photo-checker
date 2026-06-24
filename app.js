@@ -22,6 +22,7 @@ const state = {
   cameraStream: null,
   currentPhoto: null,
   permissionProbePromise: null,
+  selectedStep: null,
   vendorCounts: new Map(),
 };
 
@@ -54,17 +55,17 @@ elements.addVendorButton.addEventListener("click", addVendorCount);
 elements.clearVendorButton.addEventListener("click", clearVendorCounts);
 elements.copyInfoButton.addEventListener("click", copyReportText);
 elements.captureCameraButton.addEventListener("click", captureCurrentPhoto);
-elements.closeCameraButton.addEventListener("click", stopCamera);
-elements.clearPhotoButton.addEventListener("click", clearCurrentPhoto);
+elements.closeCameraButton.addEventListener("click", exitPhotoMode);
+elements.clearPhotoButton.addEventListener("click", clearPhotoAndResumeCamera);
 elements.downloadPhoto.addEventListener("click", () => {
   if (elements.quickModeCheckbox.checked) {
     setPhotoStatus("已開始儲存，正在清除預覽。", "success");
-    window.setTimeout(clearCurrentPhoto, 900);
     return;
   }
 
   setPhotoStatus("確認手機已存檔後，按「已存檔，清除照片」。", "success");
 });
+elements.quickModeCheckbox.addEventListener("change", syncQuickModeView);
 elements.cameraButtons.forEach((button) => {
   button.addEventListener("click", () => {
     startCamera(button.dataset.cameraStep);
@@ -74,6 +75,7 @@ elements.cameraButtons.forEach((button) => {
 window.addEventListener("pagehide", stopCamera);
 
 renderVendorList();
+syncQuickModeView();
 state.permissionProbePromise = warmUpCameraPermission();
 
 function addVendorCount() {
@@ -125,6 +127,8 @@ async function startCamera(step) {
     return;
   }
 
+  state.selectedStep = step;
+
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     const message = "此瀏覽器不支援直接開相機，請使用手機 Safari 或 Chrome 開啟 HTTPS 網址。";
     setPhotoStatus(message, "error");
@@ -141,7 +145,9 @@ async function startCamera(step) {
 
   state.activeStep = step;
   elements.cameraStepBadge.textContent = step;
+  setActiveShotButton(step);
   elements.cameraPanel.hidden = false;
+  syncQuickModeView();
   elements.captureCameraButton.disabled = true;
   setCameraStatus("正在開啟相機...");
   setPhotoStatus(`${step} 正在開啟相機...`);
@@ -231,10 +237,10 @@ async function captureCurrentPhoto() {
     if (elements.quickModeCheckbox.checked) {
       const result = annotateVideoFrameDataUrl(video, step, capturedAt);
       downloadPhotoImmediately(result);
-      stopCamera();
       setCopyStatus(`${step} 圖片已產生。`, "success");
-      setPhotoStatus(`${step} 圖片已直接儲存，預覽已清除。`, "success");
-      window.setTimeout(clearCurrentPhoto, 900);
+      elements.captureCameraButton.disabled = false;
+      setCameraStatus("可繼續拍照。");
+      setPhotoStatus(`${step} 圖片已直接儲存，可繼續拍照。`, "success");
       return;
     }
 
@@ -263,6 +269,15 @@ function stopCamera() {
   elements.cameraPanel.hidden = true;
   elements.captureCameraButton.disabled = false;
   setCameraStatus("");
+}
+
+function exitPhotoMode() {
+  stopCamera();
+  state.selectedStep = null;
+  setActiveShotButton(null);
+  elements.photoPreview.hidden = false;
+  clearCurrentPhoto();
+  setPhotoStatus("已取消拍照。");
 }
 
 async function annotateVideoFrame(video, step, capturedAt) {
@@ -405,6 +420,7 @@ function updatePhotoPreview(photo) {
   image.src = photo.url;
   image.alt = `${photo.step} 標示後圖片`;
 
+  elements.photoPreview.hidden = false;
   elements.photoPreview.innerHTML = "";
   elements.photoPreview.appendChild(image);
   elements.downloadPhoto.href = photo.url;
@@ -415,26 +431,61 @@ function updatePhotoPreview(photo) {
 }
 
 function downloadPhotoImmediately(photo) {
-  clearCurrentPhoto();
+  releaseCurrentPhoto();
+  elements.downloadPhoto.hidden = true;
+  elements.clearPhotoButton.hidden = true;
 
-  state.currentPhoto = photo;
-  elements.downloadPhoto.href = photo.url;
-  elements.downloadPhoto.download = photo.fileName;
-  elements.downloadPhoto.click();
+  const anchor = document.createElement("a");
+  anchor.href = photo.url;
+  anchor.download = photo.fileName;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
 }
 
 function clearCurrentPhoto() {
-  if (state.currentPhoto && state.currentPhoto.url && state.currentPhoto.url.startsWith("blob:")) {
-    URL.revokeObjectURL(state.currentPhoto.url);
-  }
-
-  state.currentPhoto = null;
+  releaseCurrentPhoto();
   elements.photoPreview.innerHTML = "<span>尚未拍照</span>";
   elements.downloadPhoto.removeAttribute("href");
   elements.downloadPhoto.removeAttribute("download");
   elements.downloadPhoto.hidden = true;
   elements.clearPhotoButton.hidden = true;
   setPhotoStatus("目前照片已清除。");
+}
+
+function releaseCurrentPhoto() {
+  if (state.currentPhoto && state.currentPhoto.url && state.currentPhoto.url.startsWith("blob:")) {
+    URL.revokeObjectURL(state.currentPhoto.url);
+  }
+
+  state.currentPhoto = null;
+}
+
+async function clearPhotoAndResumeCamera() {
+  const step = state.selectedStep;
+  clearCurrentPhoto();
+
+  if (step) {
+    await startCamera(step);
+  }
+}
+
+function syncQuickModeView() {
+  if (elements.quickModeCheckbox.checked) {
+    elements.photoPreview.hidden = true;
+    elements.downloadPhoto.hidden = true;
+    elements.clearPhotoButton.hidden = true;
+    return;
+  }
+
+  elements.photoPreview.hidden = false;
+}
+
+function setActiveShotButton(step) {
+  elements.cameraButtons.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.cameraStep === step);
+  });
 }
 
 async function copyReportText() {
